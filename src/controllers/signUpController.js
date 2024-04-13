@@ -1,4 +1,6 @@
+const cloudinary = require("cloudinary").v2;
 const { Pool } = require("pg");
+const { sendEmail } = require("../helpers/resend");
 require("dotenv").config();
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -8,8 +10,6 @@ const pool = new Pool({
 });
 
 const createUser = (req, res) => {
-  console.log("createUser");
-  console.log(req.body);
   const { name, username, email, password } = req.body;
   let isEmailUnique = true;
   let isUsernameUnique = true;
@@ -52,7 +52,7 @@ const createUser = (req, res) => {
           if (error) {
             throw error;
           }
-          res.status(201).json(req.body);
+          res.status(201).json(results.rows[0]);
           isValid = false;
           return;
         }
@@ -61,17 +61,34 @@ const createUser = (req, res) => {
   }
 };
 
-const addDetails = (req, res) => {
-  const { username, email } = req.params;
-  const { location, avatar } = req.body;
+const addDetails = async (req, res) => {
+  const avatar = req.file;
+
+  const { location, id } = req.body;
+  let avatar_link = "abcd";
+
+  if (!location || !id) {
+    return res.status(400).json({ error: "location and id are required" });
+  }
+
   if (avatar) {
+    console.log("Avatar inside ", avatar);
+    await cloudinary.uploader
+      .upload(`./uploads/${avatar.filename}`)
+      .then((result) => {
+        console.log(result);
+        avatar_link = result.secure_url;
+      })
+      .catch((error) => console.log("error", error));
+    console.log("after cloudinary ", avatar_link);
+
     pool.query(
-      "UPDATE users SET location = $1, avatar = $2",
-      [location, avatar],
+      `UPDATE users SET location = $1, avatar = $2 where id = $3`,
+      [location, avatar_link, id],
       (error, results) => {
         if (error) {
           console.error(error);
-          res.status(500).json({ error });
+          return res.status(500).json({ error });
         } else {
           res.status(200).json({ status: "success", message: "User updated" });
         }
@@ -79,12 +96,12 @@ const addDetails = (req, res) => {
     );
   } else {
     pool.query(
-      "UPDATE users SET location = $1",
-      [location],
+      `UPDATE users SET location = $1 where id = $2`,
+      [location, id],
       (error, results) => {
         if (error) {
           console.error(error);
-          res.status(500).json({ error });
+          return res.status(500).json({ error });
         } else {
           res.status(200).json({ status: "success", message: "User updated" });
         }
@@ -93,4 +110,26 @@ const addDetails = (req, res) => {
   }
 };
 
-module.exports = { createUser, addDetails };
+const addPreferences= (req,res)=>{
+  console.log(req.body)
+  const {id,interests}=req.body;
+  console.log(id,interests)
+  if(!id || !interests){
+    return res.status(400).json({error:"id and preferences are required"});
+  }
+  pool.query(
+    `UPDATE users SET interests = $1 where id = $2`,
+    [interests, id],
+    async (error, results) => {
+      if (error) {
+        console.error(error);
+        return res.status(500).json({ error });
+      } else {
+        await sendEmail(req.body.email,req.body.name,req.body.username);
+        res.status(200).json({ status: "success", message: "Preferences updated" });
+      }
+    }
+  );
+}
+
+module.exports = { createUser, addDetails,addPreferences };
