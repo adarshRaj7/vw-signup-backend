@@ -13,6 +13,10 @@ const pool = new Pool({
 
 const createUser = async (req, res) => {
   const { name, username, email, password } = req.body;
+  if (password.length < 7) {
+    res.status(422).send("Password too short");
+    return ;
+  }
   console.log("Email recieved is ", email);
   console.log("Before bcrypt password is ", password);
   const password_hash = await bcrypt.hash(password, saltRounds);
