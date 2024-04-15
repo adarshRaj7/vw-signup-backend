@@ -6,7 +6,6 @@ const express = require("express");
 const router = express.Router();
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    console.log(file.buffer);
     cb(null, path.join(path.dirname(__dirname), "../uploads"));
   },
   filename: function (req, file, cb) {
@@ -22,8 +21,6 @@ router.patch(
       if (err) {
         return res.status(400).json({ error: err });
       }
-      //   console.log(req.file);
-      req.customData = { ...req.body, filename: req.file.filename };
       next();
     });
   },
