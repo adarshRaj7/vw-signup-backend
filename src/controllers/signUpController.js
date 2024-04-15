@@ -13,13 +13,12 @@ const pool = new Pool({
 
 const createUser = async (req, res) => {
   const { name, username, email, password } = req.body;
-  console.log("Before bcrypt", password);
+  console.log("Email recieved is ", email);
+  console.log("Before bcrypt password is ", password);
   const password_hash = await bcrypt.hash(password, saltRounds);
-  
-  console.log("After bcrypt", password_hash);
 
-  let isEmailUnique = true;
-  let isUsernameUnique = true;
+  console.log("After bcrypt password is ", password_hash);
+
   pool.query(
     "SELECT * FROM users WHERE email = $1",
     [email],
@@ -27,46 +26,40 @@ const createUser = async (req, res) => {
       if (error) {
         throw error;
       }
+      console.log("Searched for entries with matching emails", results.rows);
       if (results.rows.length > 0) {
-        isEmailUnique = false;
+        res.status(409).send("Email already exists");
+        return;
+      } else {
+        pool.query(
+          "SELECT * FROM users WHERE username = $1",
+          [username],
+          (error, results) => {
+            if (error) {
+              throw error;
+            }
+            if (results.rows.length > 0) {
+              res.status(409).send("Username already exists");
+              return;
+            } else {
+              pool.query(
+                "INSERT INTO users (name, email,username,password_hash) VALUES ($1, $2, $3, $4) RETURNING id",
+                [name, email, username, password_hash],
+                (error, results) => {
+                  if (error) {
+                    throw error;
+                  }
+                  console.log(password_hash);
+                  res.status(201).json(results.rows[0]);
+                  return;
+                }
+              );
+            }
+          }
+        );
       }
     }
   );
-  if (!isEmailUnique) {
-    res.status(409).send("Email already exists");
-    return;
-  } else {
-    pool.query(
-      "SELECT * FROM users WHERE username = $1",
-      [username],
-      (error, results) => {
-        if (error) {
-          throw error;
-        }
-        if (results.rows.length > 0) {
-          isUsernameUnique = false;
-        }
-      }
-    );
-    if (!isUsernameUnique) {
-      res.status(409).send("Username already exists");
-      return;
-    } else {
-      pool.query(
-        "INSERT INTO users (name, email,username,password_hash) VALUES ($1, $2, $3, $4) RETURNING id",
-        [name, email, username, password_hash],
-        (error, results) => {
-          if (error) {
-            throw error;
-          }
-          console.log(password_hash);
-          res.status(201).json(results.rows[0]);
-          isValid = false;
-          return;
-        }
-      );
-    }
-  }
 };
 
 const addDetails = async (req, res) => {
