@@ -14,8 +14,7 @@ const pool = new Pool({
 const createUser = async (req, res) => {
   const { name, username, email, password } = req.body;
   if (password.length < 7) {
-    res.status(422).json({ error: "Password too short" });
-    return;
+    return res.status(422).json({ error: "Password too short" });
   }
   const password_hash = await bcrypt.hash(password, saltRounds);
   try {
@@ -74,31 +73,34 @@ const addDetails = async (req, res) => {
   }
   return res
     .status(200)
-    .json({ status: "success", message: "User updated successfully" });
+    .json({ status: "success", message: "User updated successfully",avatar_link});
 };
 
-const addPreferences = (req, res) => {
+const addPreferences = async (req, res) => {
   console.log(req.body);
   const { id, interests } = req.body;
   console.log(id, interests);
   if (!id || !interests) {
     return res.status(400).json({ error: "id and preferences are required" });
   }
-  pool.query(
-    `UPDATE users SET interests = $1 where id = $2`,
-    [interests, id],
-    async (error, results) => {
-      if (error) {
-        console.error(error);
-        return res.status(500).json({ error });
-      } else {
-        await sendEmail(req.body.email, req.body.name, req.body.username);
-        res
-          .status(200)
-          .json({ status: "success", message: "Preferences updated" });
-      }
-    }
-  );
+  try {
+    pool.query(`UPDATE users SET interests = $1 where id = $2`, [
+      interests,
+      id,
+    ]);
+    const result = await sendEmail(
+      req.body.email,
+      req.body.name,
+      req.body.username
+    );
+  } catch (error) {
+    console.log("Error", error);
+    return res.status(500).json({ error });
+  }
+
+  return res
+    .status(200)
+    .json({ status: "success", message: "Preferences updated" });
 };
 
 module.exports = { createUser, addDetails, addPreferences };
